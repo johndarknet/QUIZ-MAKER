@@ -114,44 +114,57 @@ async function readPPTX(file) {
   alert("PPTX loaded!");
 }
 
-/* TEXT UTILS */
-function getSentences(text) {
-  return text.split(/\n|(?<=[.!?])\s+/).map(s => s.trim()).filter(s => s.length > 8);
-}
-function getWords(text) {
-  return text.toLowerCase().replace(/[^a-z\s]/g, "").split(/\s+/).filter(w => w.length > 3);
+/* TEXT UTILITIES */
+function getParagraphs(text) {
+  const sentences = text.split(/\n|(?<=[.!?])\s+/).map(s => s.trim()).filter(s => s.length > 5);
+  const paragraphs = [];
+  for (let i = 0; i < sentences.length; i += 3) { // combine 3 sentences per paragraph
+    paragraphs.push(sentences.slice(i, i+3).join(' '));
+  }
+  return paragraphs;
 }
 
-/* QUESTION GENERATORS */
+function getKeywords(text) {
+  const words = text.toLowerCase().replace(/[^a-z\s]/g, "").split(/\s+/).filter(w => w.length > 3);
+  const freq = {};
+  words.forEach(w => freq[w] = (freq[w] || 0) + 1);
+  // keywords are top 20 frequent words
+  return Object.keys(freq).sort((a,b)=> freq[b]-freq[a]).slice(0,20);
+}
+
+/* GENERATORS */
 function createMCQ(count) {
-  const sentences = getSentences(extractedText);
-  const words = getWords(extractedText);
+  const paragraphs = getParagraphs(extractedText);
+  const keywords = getKeywords(extractedText);
   return Array.from({ length: count }, (_, i) => {
-    const answer = words[Math.floor(Math.random() * words.length)];
-    const sentence = sentences[i % sentences.length];
+    const answer = keywords[i % keywords.length];
+    const paragraph = paragraphs[i % paragraphs.length];
     const choices = new Set([answer]);
-    while (choices.size < 4) choices.add(words[Math.floor(Math.random() * words.length)]);
+    while (choices.size < 4) choices.add(keywords[Math.floor(Math.random() * keywords.length)]);
     const shuffled = [...choices].sort(() => Math.random() - 0.5);
-    answerKey.push(`${i + 1}. ${answer}`);
-    return { type: "mcq", question: sentence.replace(new RegExp(answer, "i"), "_____"), choices: shuffled };
+    answerKey.push(`${i+1}. ${answer}`);
+    const questionText = paragraph.replace(new RegExp(answer, "i"), "_____");
+    return { type: "mcq", question: questionText, choices: shuffled };
   });
 }
 
 function createEnumeration(count) {
-  const words = [...new Set(getWords(extractedText))];
+  const keywords = getKeywords(extractedText);
   return Array.from({ length: count }, (_, i) => {
-    const ans = words.slice(i * 3, i * 3 + 3);
-    answerKey.push(`${i + 1}. ${ans.join(", ")}`);
+    const ans = keywords.slice(i*3, i*3+3);
+    answerKey.push(`${i+1}. ${ans.join(", ")}`);
     return { type: "enum", question: `Enumerate ${ans.length} important terms from the lesson.` };
   });
 }
 
 function createIdentification(count) {
-  const words = [...new Set(getWords(extractedText))];
+  const paragraphs = getParagraphs(extractedText);
+  const keywords = getKeywords(extractedText);
   return Array.from({ length: count }, (_, i) => {
-    const answer = words[i % words.length] || "Unknown";
-    answerKey.push(`${i + 1}. ${answer}`);
-    return { type: "id", question: `Identify the term: ________` };
+    const answer = keywords[i % keywords.length] || "Unknown";
+    const paragraph = paragraphs[i % paragraphs.length];
+    answerKey.push(`${i+1}. ${answer}`);
+    return { type: "id", question: paragraph + " \nIdentify the key term: ________" };
   });
 }
 
