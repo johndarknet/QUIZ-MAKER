@@ -1,34 +1,201 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <title>Quiz & Exam Maker</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta charset="UTF-8">
+<title>Quiz & Exam Maker</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-  <!-- Libraries -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<!-- PDF.js & JSZip Libraries -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 
-  <link rel="stylesheet" href="assets/css/style.css" />
+<style>
+body {
+  font-family: Arial, sans-serif;
+  background: linear-gradient(135deg, #0f172a, #020617);
+  color: #e5e7eb;
+  margin: 0;
+  padding: 20px;
+}
+.container { max-width: 900px; margin: auto; }
+h1 { text-align: center; margin-bottom: 10px; }
+.card { background: rgba(255,255,255,0.05); padding: 20px; border-radius: 14px; margin-bottom: 20px; }
+input, button, select { padding: 10px; border-radius: 10px; border: none; font-size: 14px; }
+input { width: 100%; background: #020617; color: white; border: 1px solid rgba(255,255,255,0.1); }
+button { background: #6366f1; color: white; cursor: pointer; margin-right: 10px; }
+button:hover { background: #4f46e5; }
+.controls { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+.question { background: rgba(255,255,255,0.04); padding: 15px; border-radius: 12px; margin-bottom: 15px; }
+label { display: block; margin-top: 6px; }
+.small { font-size: 12px; opacity: 0.8; }
+
+/* ================= Printable CSS ================= */
+@media print {
+  body { background: white; color: black; padding: 0; }
+  .card, .controls, input, button, select { display: none; }
+  .question { background: white; border: 1px solid #000; padding: 10px; page-break-inside: avoid; }
+  #answerKey { margin-top: 20px; }
+  h1 { color: black; }
+}
+</style>
 </head>
-
 <body>
-  <div class="container">
-    <h1>📘 Quiz & Exam Maker</h1>
+<div class="container">
+  <h1>📘 Quiz & Exam Maker</h1>
 
-    <div class="card">
-      <input type="file" id="fileInput" accept=".pdf,.pptx" />
-      <p class="small">Upload PDF or PPTX (text-based)</p>
-    </div>
-
-    <div class="card controls">
-      <button onclick="generateQuiz()">Generate Quiz</button>
-      <button onclick="generateExam()">Generate Exam</button>
-    </div>
-
-    <div id="output"></div>
+  <div class="card">
+    <input type="file" id="fileInput" accept=".pdf,.pptx">
+    <p class="small">Upload PDF or PPTX (text-based)</p>
   </div>
 
-  <script src="assets/js/app.js"></script>
+  <div class="card controls">
+    <select id="mode">
+      <option value="quiz">Quiz</option>
+      <option value="exam">Exam</option>
+    </select>
+
+    <select id="type">
+      <option value="mcq">Multiple Choice</option>
+      <option value="enum">Enumeration</option>
+      <option value="id">Identification</option>
+      <option value="both">MCQ + Enumeration</option>
+      <option value="all">All Types</option>
+    </select>
+
+    <input type="number" id="items" min="1" value="10">
+    <button onclick="generate()">Generate</button>
+    <button onclick="window.print()">Print</button>
+  </div>
+
+  <div id="output"></div>
+  <div id="answerKey"></div>
+</div>
+
+<script>
+let extractedText = "";
+let answerKey = [];
+
+/* FILE INPUT */
+document.getElementById("fileInput").addEventListener("change", async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const ext = file.name.split(".").pop().toLowerCase();
+  if (ext === "pdf") await readPDF(file);
+  else if (ext === "pptx") await readPPTX(file);
+  else alert("Only PDF or PPTX allowed.");
+});
+
+/* PDF Reader */
+async function readPDF(file) {
+  extractedText = "";
+  const reader = new FileReader();
+  reader.onload = async function () {
+    const pdf = await pdfjsLib.getDocument(new Uint8Array(this.result)).promise;
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i);
+      const content = await page.getTextContent();
+      content.items.forEach(t => extractedText += t.str + "\n");
+    }
+    alert("PDF loaded!");
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+/* PPTX Reader */
+async function readPPTX(file) {
+  extractedText = "";
+  const zip = await JSZip.loadAsync(file);
+  const slides = Object.keys(zip.files).filter(f => f.includes("ppt/slides/slide"));
+  for (const slide of slides) {
+    const xml = await zip.files[slide].async("string");
+    const matches = xml.match(/<a:t>(.*?)<\/a:t>/g) || [];
+    matches.forEach(m => extractedText += m.replace(/<\/?a:t>/g, "") + "\n");
+  }
+  alert("PPTX loaded!");
+}
+
+/* TEXT UTILS */
+function getSentences(text) {
+  return text.split(/\n|(?<=[.!?])\s+/).map(s => s.trim()).filter(s => s.length > 8);
+}
+function getWords(text) {
+  return text.toLowerCase().replace(/[^a-z\s]/g, "").split(/\s+/).filter(w => w.length > 3);
+}
+
+/* QUESTION GENERATORS */
+function createMCQ(count) {
+  const sentences = getSentences(extractedText);
+  const words = getWords(extractedText);
+  return Array.from({ length: count }, (_, i) => {
+    const answer = words[Math.floor(Math.random() * words.length)];
+    const sentence = sentences[i % sentences.length];
+    const choices = new Set([answer]);
+    while (choices.size < 4) choices.add(words[Math.floor(Math.random() * words.length)]);
+    const shuffled = [...choices].sort(() => Math.random() - 0.5);
+    answerKey.push(`${i + 1}. ${answer}`);
+    return { type: "mcq", question: sentence.replace(new RegExp(answer, "i"), "_____"), choices: shuffled };
+  });
+}
+
+function createEnumeration(count) {
+  const words = [...new Set(getWords(extractedText))];
+  return Array.from({ length: count }, (_, i) => {
+    const ans = words.slice(i * 3, i * 3 + 3);
+    answerKey.push(`${i + 1}. ${ans.join(", ")}`);
+    return { type: "enum", question: `Enumerate ${ans.length} important terms from the lesson.` };
+  });
+}
+
+function createIdentification(count) {
+  const words = [...new Set(getWords(extractedText))];
+  return Array.from({ length: count }, (_, i) => {
+    const answer = words[i % words.length] || "Unknown";
+    answerKey.push(`${i + 1}. ${answer}`);
+    return { type: "id", question: `Identify the term: ________` };
+  });
+}
+
+/* MAIN GENERATOR */
+function generate() {
+  answerKey = [];
+  const type = document.getElementById("type").value;
+  const items = Number(document.getElementById("items").value);
+  const output = document.getElementById("output");
+  const keyDiv = document.getElementById("answerKey");
+  output.innerHTML = "";
+  keyDiv.innerHTML = "";
+
+  let questions = [];
+  if (type === "mcq") questions = createMCQ(items);
+  else if (type === "enum") questions = createEnumeration(items);
+  else if (type === "id") questions = createIdentification(items);
+  else if (type === "both") {
+    const half = Math.floor(items/2);
+    questions = [...createMCQ(half), ...createEnumeration(items - half)];
+  }
+  else if (type === "all") {
+    const third = Math.floor(items/3);
+    questions = [
+      ...createMCQ(third),
+      ...createEnumeration(third),
+      ...createIdentification(items - 2*third)
+    ];
+  }
+
+  questions.forEach((q, i) => {
+    const div = document.createElement("div");
+    div.className = "question";
+    if (q.type === "mcq") {
+      div.innerHTML = `<strong>${i+1}. ${q.question}</strong>` +
+        q.choices.map(c => `<label><input type="radio" name="q${i}"> ${c}</label>`).join("");
+    } else {
+      div.innerHTML = `<strong>${i+1}. ${q.question}</strong><br><em>__________</em>`;
+    }
+    output.appendChild(div);
+  });
+
+  keyDiv.innerHTML = `<div class="card"><h3>🗝 Answer Key</h3><ol>${answerKey.map(a => `<li>${a}</li>`).join("")}</ol></div>`;
+}
+</script>
 </body>
 </html>
