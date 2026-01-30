@@ -118,7 +118,7 @@ async function readPPTX(file) {
 function getParagraphs(text) {
   const sentences = text.split(/\n|(?<=[.!?])\s+/).map(s => s.trim()).filter(s => s.length > 5);
   const paragraphs = [];
-  for (let i = 0; i < sentences.length; i += 3) { // combine 3 sentences per paragraph
+  for (let i = 0; i < sentences.length; i += 3) {
     paragraphs.push(sentences.slice(i, i+3).join(' '));
   }
   return paragraphs;
@@ -128,30 +128,40 @@ function getKeywords(text) {
   const words = text.toLowerCase().replace(/[^a-z\s]/g, "").split(/\s+/).filter(w => w.length > 3);
   const freq = {};
   words.forEach(w => freq[w] = (freq[w] || 0) + 1);
-  // keywords are top 20 frequent words
-  return Object.keys(freq).sort((a,b)=> freq[b]-freq[a]).slice(0,20);
+  return Object.keys(freq).sort((a,b)=> freq[b]-freq[a]).slice(0,50);
 }
 
 /* GENERATORS */
 function createMCQ(count) {
   const paragraphs = getParagraphs(extractedText);
   const keywords = getKeywords(extractedText);
+  const used = new Set();
   return Array.from({ length: count }, (_, i) => {
-    const answer = keywords[i % keywords.length];
-    const paragraph = paragraphs[i % paragraphs.length];
+    const answer = keywords.find(k => !used.has(k)) || keywords[i % keywords.length];
+    used.add(answer);
+
+    let paragraph = paragraphs.find(p => p.toLowerCase().includes(answer)) || paragraphs[i % paragraphs.length];
+    const questionText = paragraph.replace(new RegExp(answer, "i"), "_____");
+
     const choices = new Set([answer]);
     while (choices.size < 4) choices.add(keywords[Math.floor(Math.random() * keywords.length)]);
     const shuffled = [...choices].sort(() => Math.random() - 0.5);
+
     answerKey.push(`${i+1}. ${answer}`);
-    const questionText = paragraph.replace(new RegExp(answer, "i"), "_____");
     return { type: "mcq", question: questionText, choices: shuffled };
   });
 }
 
 function createEnumeration(count) {
-  const keywords = getKeywords(extractedText);
+  const keywords = getKeywords(extractedText).sort(() => Math.random() - 0.5);
+  const used = new Set();
   return Array.from({ length: count }, (_, i) => {
-    const ans = keywords.slice(i*3, i*3+3);
+    const ans = [];
+    while (ans.length < 3 && used.size < keywords.length) {
+      const term = keywords[used.size];
+      ans.push(term);
+      used.add(term);
+    }
     answerKey.push(`${i+1}. ${ans.join(", ")}`);
     return { type: "enum", question: `Enumerate ${ans.length} important terms from the lesson.` };
   });
@@ -160,11 +170,16 @@ function createEnumeration(count) {
 function createIdentification(count) {
   const paragraphs = getParagraphs(extractedText);
   const keywords = getKeywords(extractedText);
+  const used = new Set();
   return Array.from({ length: count }, (_, i) => {
-    const answer = keywords[i % keywords.length] || "Unknown";
-    const paragraph = paragraphs[i % paragraphs.length];
+    const answer = keywords.find(k => !used.has(k)) || "Unknown";
+    used.add(answer);
+
+    let paragraph = paragraphs.find(p => p.toLowerCase().includes(answer)) || paragraphs[i % paragraphs.length];
+    const questionText = paragraph.replace(new RegExp(answer, "i"), "_____");
+
     answerKey.push(`${i+1}. ${answer}`);
-    return { type: "id", question: paragraph + " \nIdentify the key term: ________" };
+    return { type: "id", question: questionText + " \nIdentify the key term: ________" };
   });
 }
 
