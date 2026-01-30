@@ -124,62 +124,67 @@ function getParagraphs(text) {
   return paragraphs;
 }
 
-function getKeywords(text) {
-  const words = text.toLowerCase().replace(/[^a-z\s]/g, "").split(/\s+/).filter(w => w.length > 3);
-  const freq = {};
-  words.forEach(w => freq[w] = (freq[w] || 0) + 1);
-  return Object.keys(freq).sort((a,b)=> freq[b]-freq[a]).slice(0,50);
-}
-
 /* GENERATORS */
+
+/* MCQ generator - uses paragraph context */
 function createMCQ(count) {
   const paragraphs = getParagraphs(extractedText);
-  const keywords = getKeywords(extractedText);
-  const used = new Set();
-  return Array.from({ length: count }, (_, i) => {
-    const answer = keywords.find(k => !used.has(k)) || keywords[i % keywords.length];
-    used.add(answer);
+  const usedParagraphs = new Set();
 
-    let paragraph = paragraphs.find(p => p.toLowerCase().includes(answer)) || paragraphs[i % paragraphs.length];
-    const questionText = paragraph.replace(new RegExp(answer, "i"), "_____");
+  return Array.from({ length: count }, (_, i) => {
+    let paragraph = paragraphs.find((p, idx) => !usedParagraphs.has(idx)) || paragraphs[i % paragraphs.length];
+    usedParagraphs.add(paragraphs.indexOf(paragraph));
+
+    // Select a random word from paragraph as answer
+    const words = paragraph.match(/\b[a-zA-Z]{4,}\b/g) || [];
+    const answer = words[Math.floor(Math.random() * words.length)] || "Term";
 
     const choices = new Set([answer]);
-    while (choices.size < 4) choices.add(keywords[Math.floor(Math.random() * keywords.length)]);
+    while (choices.size < 4) {
+      const randomWord = words[Math.floor(Math.random() * words.length)] || "Option";
+      choices.add(randomWord);
+    }
     const shuffled = [...choices].sort(() => Math.random() - 0.5);
 
     answerKey.push(`${i+1}. ${answer}`);
+    const questionText = paragraph.replace(new RegExp(answer, "i"), "_____");
+
     return { type: "mcq", question: questionText, choices: shuffled };
   });
 }
 
+/* Enumeration generator - paragraph-based */
 function createEnumeration(count) {
-  const keywords = getKeywords(extractedText).sort(() => Math.random() - 0.5);
-  const used = new Set();
+  const paragraphs = getParagraphs(extractedText);
+  const usedParagraphs = new Set();
+
   return Array.from({ length: count }, (_, i) => {
-    const ans = [];
-    while (ans.length < 3 && used.size < keywords.length) {
-      const term = keywords[used.size];
-      ans.push(term);
-      used.add(term);
-    }
-    answerKey.push(`${i+1}. ${ans.join(", ")}`);
-    return { type: "enum", question: `Enumerate ${ans.length} important terms from the lesson.` };
+    let paragraph = paragraphs.find((p, idx) => !usedParagraphs.has(idx)) || paragraphs[i % paragraphs.length];
+    usedParagraphs.add(paragraphs.indexOf(paragraph));
+
+    const sentences = paragraph.split(/[.!?]\s+/).filter(s => s.length > 3);
+    const numItems = Math.min(3, sentences.length);
+
+    return {
+      type: "enum",
+      question: `Read the following and enumerate ${numItems} important points from the lesson:\n\n${paragraph}`
+    };
   });
 }
 
+/* Identification generator - paragraph-based */
 function createIdentification(count) {
   const paragraphs = getParagraphs(extractedText);
-  const keywords = getKeywords(extractedText);
-  const used = new Set();
+  const usedParagraphs = new Set();
+
   return Array.from({ length: count }, (_, i) => {
-    const answer = keywords.find(k => !used.has(k)) || "Unknown";
-    used.add(answer);
+    let paragraph = paragraphs.find((p, idx) => !usedParagraphs.has(idx)) || paragraphs[i % paragraphs.length];
+    usedParagraphs.add(paragraphs.indexOf(paragraph));
 
-    let paragraph = paragraphs.find(p => p.toLowerCase().includes(answer)) || paragraphs[i % paragraphs.length];
-    const questionText = paragraph.replace(new RegExp(answer, "i"), "_____");
-
-    answerKey.push(`${i+1}. ${answer}`);
-    return { type: "id", question: questionText + " \nIdentify the key term: ________" };
+    return {
+      type: "id",
+      question: `${paragraph}\n\nIdentify the key term or concept from the paragraph: ________`
+    };
   });
 }
 
