@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Quiz & Exam Maker</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <!-- Libraries -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+
+  <link rel="stylesheet" href="assets/css/style.css" />
+</head>
+
+<body>
+  <div class="container">
+    <h1>📘 Quiz & Exam Maker</h1>
+
+    <div class="card">
+      <input type="file" id="fileInput" accept=".pdf,.pptx" />
+      <p class="small">Upload PDF or PPTX (text-based)</p>
+    </div>
+
+    <div class="card controls">
+      <button onclick="generateQuiz()">Generate Quiz</button>
+      <button onclick="generateExam()">Generate Exam</button>
+    </div>
+
+    <div id="output"></div>
+  </div>
+
+  <script src="assets/js/app.js"></script>
+</body>
+</html>
