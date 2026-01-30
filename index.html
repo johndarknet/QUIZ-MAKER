@@ -126,7 +126,7 @@ function getParagraphs(text) {
 
 /* GENERATORS */
 
-/* MCQ generator - uses paragraph context */
+/* MCQ generator */
 function createMCQ(count) {
   const paragraphs = getParagraphs(extractedText);
   const usedParagraphs = new Set();
@@ -135,7 +135,7 @@ function createMCQ(count) {
     let paragraph = paragraphs.find((p, idx) => !usedParagraphs.has(idx)) || paragraphs[i % paragraphs.length];
     usedParagraphs.add(paragraphs.indexOf(paragraph));
 
-    // Select a random word from paragraph as answer
+    // pick a random word from paragraph as answer
     const words = paragraph.match(/\b[a-zA-Z]{4,}\b/g) || [];
     const answer = words[Math.floor(Math.random() * words.length)] || "Term";
 
@@ -153,7 +153,7 @@ function createMCQ(count) {
   });
 }
 
-/* Enumeration generator - paragraph-based */
+/* Enumeration generator - paragraph based, no answer shown */
 function createEnumeration(count) {
   const paragraphs = getParagraphs(extractedText);
   const usedParagraphs = new Set();
@@ -162,17 +162,14 @@ function createEnumeration(count) {
     let paragraph = paragraphs.find((p, idx) => !usedParagraphs.has(idx)) || paragraphs[i % paragraphs.length];
     usedParagraphs.add(paragraphs.indexOf(paragraph));
 
-    const sentences = paragraph.split(/[.!?]\s+/).filter(s => s.length > 3);
-    const numItems = Math.min(3, sentences.length);
-
     return {
       type: "enum",
-      question: `Read the following and enumerate ${numItems} important points from the lesson:\n\n${paragraph}`
+      question: `Read the following paragraph and enumerate 3 important points from the lesson:\n\n${paragraph}`
     };
   });
 }
 
-/* Identification generator - paragraph-based */
+/* Identification generator - paragraph based, no answer shown */
 function createIdentification(count) {
   const paragraphs = getParagraphs(extractedText);
   const usedParagraphs = new Set();
@@ -227,6 +224,7 @@ function generate() {
     output.appendChild(div);
   });
 
+  // Optional: show answer key only for teacher's view
   keyDiv.innerHTML = `<div class="card"><h3>🗝 Answer Key</h3><ol>${answerKey.map(a => `<li>${a}</li>`).join("")}</ol></div>`;
 }
 </script>
